@@ -1,6 +1,6 @@
 # Cursor Hook CLI
 
-CLI tool to install Cursor hooks.
+A TypeScript CLI tool to install Cursor hooks from Git repositories.
 
 ## Installation
 
@@ -125,6 +125,20 @@ The tool works on:
 - **Windows** (PowerShell, CMD, Git Bash)
 
 Path variables like `$HOME` are automatically expanded on all platforms.
+
+## Examples
+
+### Example Repository
+
+See [cursor-window-activate-hook](https://github.com/beautyfree/cursor-window-activate-hook) for a complete example of a hook repository with:
+- `cursor-hook.config.json` configuration file
+- Platform-specific install commands
+- Hook scripts and configuration
+
+This repository demonstrates:
+- How to structure a hook package
+- Platform-specific dependency installation
+- Proper hook configuration
 
 ## Development
 
