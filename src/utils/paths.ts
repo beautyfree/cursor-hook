@@ -23,22 +23,26 @@ export function detectOS(): 'windows' | 'linux' | 'macos' | 'unknown' {
 }
 
 /**
- * Expand $HOME variable in paths
+ * Expand $HOME variable in paths and normalize
  */
 export function expandHome(pathStr: string): string {
   const homeDir = os.homedir();
   const osType = detectOS();
 
+  let expanded: string;
   if (osType === 'windows') {
     // On Windows, handle both $HOME and %USERPROFILE%
-    return pathStr
+    expanded = pathStr
       .replace(/\$HOME/g, homeDir)
       .replace(/%USERPROFILE%/g, homeDir)
       .replace(/^~/, homeDir);
   } else {
     // On Unix-like systems
-    return pathStr.replace(/\$HOME/g, homeDir).replace(/^~/, homeDir);
+    expanded = pathStr.replace(/\$HOME/g, homeDir).replace(/^~/, homeDir);
   }
+
+  // Normalize path to ensure consistent separators for the platform
+  return path.normalize(expanded);
 }
 
 /**

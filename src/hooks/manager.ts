@@ -188,9 +188,9 @@ export function expandPathsInHooks(
         const projectRoot = path.dirname(hooksJsonDir); // Go up from .cursor to project root
         const relativeHooksDir = path.relative(projectRoot, hooksDir);
         
-        // Replace $HOME/.cursor/hooks/ with relative path
-        command = command.replace(/\$HOME\/\.cursor\/hooks\//g, `${relativeHooksDir}/`);
-        command = command.replace(/~\/\.cursor\/hooks\//g, `${relativeHooksDir}/`);
+        // Replace $HOME/.cursor/hooks/ with relative path (handle both / and \)
+        command = command.replace(/\$HOME[\/\\]\.cursor[\/\\]hooks[\/\\]/g, `${relativeHooksDir}${path.sep}`);
+        command = command.replace(/~[\/\\]\.cursor[\/\\]hooks[\/\\]/g, `${relativeHooksDir}${path.sep}`);
         
         // If still contains $HOME, expand it but make relative to project
         if (command.includes('$HOME')) {
@@ -201,16 +201,20 @@ export function expandPathsInHooks(
             if (!relativePath.startsWith('..')) {
               command = relativePath;
             } else {
-              // If it goes outside, use absolute path
-              command = expandedPath;
+              // If it goes outside, use absolute path and normalize
+              command = path.normalize(expandedPath);
             }
           } catch {
-            command = expandedPath;
+            command = path.normalize(expandedPath);
           }
+        } else {
+          // Normalize the path to ensure consistent separators
+          command = path.normalize(command);
         }
       } else {
-        // For global installation, expand $HOME normally
+        // For global installation, expand $HOME normally and normalize
         command = expandHome(command);
+        command = path.normalize(command);
       }
 
       return {
