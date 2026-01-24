@@ -43,13 +43,14 @@ export async function downloadFiles(
 
       // Make scripts executable on Unix-like systems
       if (os.platform() !== 'win32') {
-        // Check if file looks like a script (has shebang or is .sh/.bash file)
+        // Check if file looks like a script (has shebang or is script file)
         const content = await fs.readFile(targetPath, 'utf-8');
         const isScript =
           content.startsWith('#!') ||
           file.endsWith('.sh') ||
           file.endsWith('.bash') ||
-          file.endsWith('.zsh');
+          file.endsWith('.zsh') ||
+          file.endsWith('.js');
 
         if (isScript) {
           await fs.chmod(targetPath, 0o755); // rwxr-xr-x

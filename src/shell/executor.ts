@@ -91,12 +91,31 @@ export async function executeCommandWithOutput(
 
   const result = await executeCommand(command, { cwd: options.cwd });
 
-  if (result.stdout && !options.silent) {
-    console.log(result.stdout);
-  }
+  // For npm install, filter out warnings and verbose output
+  if (command.includes('npm install')) {
+    // Only show errors, not warnings or verbose output
+    if (result.stderr && !options.silent) {
+      const errorLines = result.stderr
+        .split('\n')
+        .filter((line) => 
+          line.includes('error') || 
+          line.includes('Error') || 
+          line.includes('ERR!')
+        );
+      if (errorLines.length > 0) {
+        console.error(errorLines.join('\n'));
+      }
+    }
+    // Don't show stdout for npm install (too verbose)
+  } else {
+    // For other commands, show output normally
+    if (result.stdout && !options.silent) {
+      console.log(result.stdout);
+    }
 
-  if (result.stderr && !options.silent) {
-    console.error(result.stderr);
+    if (result.stderr && !options.silent) {
+      console.error(result.stderr);
+    }
   }
 
   // Consider it successful if there's no error message or if exit code is 0

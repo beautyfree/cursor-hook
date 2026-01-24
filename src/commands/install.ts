@@ -21,6 +21,7 @@ import {
 } from '../utils/paths';
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import * as os from 'os';
 
 export interface InstallOptions {
   repo: string;
@@ -65,15 +66,7 @@ export async function installHooks(options: InstallOptions): Promise<void> {
     const config: CursorHookConfig = configData;
     console.log('✓ Configuration loaded\n');
 
-    // Step 3: Execute install command if present
-    const installCommand = getInstallCommand(config.installCommand);
-    if (installCommand) {
-      console.log('⚙️  Installing system dependencies...');
-      await executeCommandWithOutput(installCommand);
-      console.log('✓ Dependencies installed\n');
-    }
-
-    // Step 4: Prompt for hooks location
+    // Step 3: Prompt for hooks location (before copying files and installing)
     const location = await promptHooksLocation();
     const hooksDir =
       location === 'global' ? getGlobalHooksDir() : getProjectHooksDir();
@@ -82,11 +75,24 @@ export async function installHooks(options: InstallOptions): Promise<void> {
         ? getGlobalHooksJsonPath()
         : getProjectHooksJsonPath();
 
-    // Step 5: Download files
+    // Step 4: Download files first
     if (config.files && config.files.length > 0) {
       console.log('📁 Downloading files...');
       await downloadFiles(tempDir, config.files, hooksDir);
       console.log(`✓ Files downloaded to: ${hooksDir}\n`);
+    }
+
+    // Step 5: Execute install command if present (after files are copied, so package.json is available)
+    const installCommand = getInstallCommand(config.installCommand);
+    if (installCommand) {
+      console.log('⚙️  Installing dependencies...');
+      
+      // Determine the directory where activate-window is located
+      const activateWindowDir = path.join(hooksDir, 'activate-window');
+      
+      // Execute command in the activate-window directory (where package.json is)
+      await executeCommandWithOutput(installCommand, { cwd: activateWindowDir });
+      console.log('✓ Dependencies installed\n');
     }
 
     // Step 6: Create backup of hooks.json if it exists
