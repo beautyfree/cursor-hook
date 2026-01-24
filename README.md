@@ -47,16 +47,18 @@ Repositories must include a `cursor-hook.config.json` file in the root with the 
 
 ### Simple Example (single command for all platforms)
 
+When the installation command is the same across all platforms, use a simple string:
+
 ```json
 {
-  "installCommand": "sudo apt-get install -y xdotool",
+  "installCommand": "npm install --production --no-save --silent --no-audit --no-fund || true",
   "files": [
-    "activate-window.sh"
+    "activate-window"
   ],
   "hooks": {
     "beforeSubmitPrompt": [
       {
-        "command": "$HOME/.cursor/hooks/activate-window.sh"
+        "command": "node $HOME/.cursor/hooks/activate-window/activate-window.js"
       }
     ]
   }
@@ -107,15 +109,15 @@ Repositories must include a `cursor-hook.config.json` file in the root with the 
 
 ## Installation Flow
 
-1. Downloads the repository to a temporary directory
+1. Downloads the repository to a temporary directory (or uses local path if provided)
 2. Loads `cursor-hook.config.json` from the repository root
-3. Executes platform-specific `installCommand` if present (for system dependencies)
-4. Prompts user to choose installation location:
+3. Prompts user to choose installation location:
    - **Global**: `~/.cursor/hooks.json` (applies to all projects)
    - **Project**: `.cursor/hooks.json` (applies to current project only)
-5. Downloads specified files to `.cursor/hooks` directory
+4. Downloads specified files to `.cursor/hooks` directory
+5. Executes `installCommand` if present (runs in the hook's directory, e.g., for npm dependencies)
 6. Creates backup of existing `hooks.json` (if present)
-7. Merges hooks configuration into `hooks.json` (preserves existing hooks)
+7. Merges hooks configuration into `hooks.json` (preserves existing hooks, prevents duplicates)
 
 ## Cross-Platform Support
 
