@@ -21,12 +21,12 @@ export async function promptHooksLocation(): Promise<HooksLocation> {
       message: 'Where would you like to install the hooks?',
       choices: [
         {
-          name: 'Global (~/.cursor/hooks.json) - applies to all projects',
-          value: 'global',
-        },
-        {
           name: 'Project (.cursor/hooks.json) - applies to current project only',
           value: 'project',
+        },
+        {
+          name: 'Global (~/.cursor/hooks.json) - applies to all projects',
+          value: 'global',
         },
       ],
     },
