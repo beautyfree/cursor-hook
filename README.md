@@ -52,9 +52,10 @@ When the installation command is the same across all platforms, use a simple str
 ```json
 {
   "installCommand": "npm install --production --no-save --silent --no-audit --no-fund || true",
-  "files": [
-    "activate-window"
-  ],
+  "files": {
+    "hooks": ["activate-window"],
+    "rules": []
+  },
   "hooks": {
     "beforeSubmitPrompt": [
       {
@@ -75,10 +76,10 @@ When the installation command is the same across all platforms, use a simple str
     "windows": "",
     "default": "echo 'No installation needed for this platform'"
   },
-  "files": [
-    "file1.sh",
-    "directory/"
-  ],
+  "files": {
+    "hooks": ["file1.sh", "directory/"],
+    "rules": []
+  },
   "hooks": {
     "beforeSubmitPrompt": [
       {
@@ -104,7 +105,9 @@ When the installation command is the same across all platforms, use a simple str
     - `windows` - Command for Windows
     - `default` - Fallback command for other platforms
   - Empty strings or missing platform keys will skip installation for that platform
-- **files** (optional): Array of files or directories to download and place in `.cursor/hooks`
+- **files** (optional): Object with:
+  - **hooks**: Array of paths (files or directories) to copy into `.cursor/hooks`
+  - **rules**: Array of paths (files or directories) to copy into `.cursor/rules` (Cursor Rules for AI)
 - **hooks** (required): Object mapping hook names to arrays of hook configurations
 
 ## Installation Flow
@@ -114,7 +117,7 @@ When the installation command is the same across all platforms, use a simple str
 3. Prompts user to choose installation location:
    - **Global**: `~/.cursor/hooks.json` (applies to all projects)
    - **Project**: `.cursor/hooks.json` (applies to current project only)
-4. Downloads specified files to `.cursor/hooks` directory
+4. Downloads files: `files.hooks` → `.cursor/hooks`, `files.rules` → `.cursor/rules` (if present)
 5. Executes `installCommand` if present (runs in the hook's directory, e.g., for npm dependencies)
 6. Creates backup of existing `hooks.json` (if present)
 7. Merges hooks configuration into `hooks.json` (preserves existing hooks, prevents duplicates)

@@ -31,9 +31,15 @@ export interface CursorHookConfig {
   installCommand?: string | PlatformCommands
 
   /**
-   * Array of files or directories to download and place in .cursor/hooks
+   * Files to download: hooks and rules paths from the repo.
+   * Each list is copied into the corresponding .cursor area.
    */
-  files?: string[]
+  files?: {
+    /** Paths (files or dirs) to copy into .cursor/hooks */
+    hooks?: string[]
+    /** Paths (files or dirs) to copy into .cursor/rules */
+    rules?: string[]
+  }
 
   /**
    * Hooks configuration to merge into hooks.json
@@ -79,11 +85,28 @@ export function validateConfig(config: any): config is CursorHookConfig {
   }
 
   if (config.files !== undefined) {
-    if (!Array.isArray(config.files)) {
-      throw new Error('files must be an array if provided')
+    if (
+      !config.files ||
+      typeof config.files !== 'object' ||
+      Array.isArray(config.files)
+    ) {
+      throw new Error('files must be an object if provided')
     }
-    if (!config.files.every((f: any) => typeof f === 'string')) {
-      throw new Error('All files must be strings')
+    if (config.files.hooks !== undefined) {
+      if (!Array.isArray(config.files.hooks)) {
+        throw new Error('files.hooks must be an array if provided')
+      }
+      if (!config.files.hooks.every((f: any) => typeof f === 'string')) {
+        throw new Error('All files.hooks entries must be strings')
+      }
+    }
+    if (config.files.rules !== undefined) {
+      if (!Array.isArray(config.files.rules)) {
+        throw new Error('files.rules must be an array if provided')
+      }
+      if (!config.files.rules.every((f: any) => typeof f === 'string')) {
+        throw new Error('All files.rules entries must be strings')
+      }
     }
   }
 
