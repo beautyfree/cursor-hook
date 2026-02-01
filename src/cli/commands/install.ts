@@ -124,9 +124,8 @@ export async function installHooks(options: InstallOptions): Promise<void> {
 
     // Step 5b: Per-hook install (e.g. npm i && npm run build in each hook dir)
     const installCommand = getInstallCommand(config.installCommand);
-    const runOnce = config.installCommandRunOnce === true;
 
-    if (installCommand && (runOnce || hooksPaths.length === 0)) {
+    if (installCommand && hooksPaths.length === 0) {
       console.log('⚙️  Installing dependencies...');
       const installOk = await executeCommandWithOutput(installCommand, {
         cwd: hooksDir,

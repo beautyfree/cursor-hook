@@ -31,16 +31,10 @@ export interface CursorHookConfig {
   systemInstallCommand?: string | PlatformCommands;
 
   /**
-   * Run in each hook folder (e.g. npm i && npm run build) or once when installCommandRunOnce is true.
-   * Can be a string or platform-specific object.
+   * Run in each hook folder (e.g. npm i && npm run build). Can be a string or platform-specific object.
+   * For system deps run once, use systemInstallCommand instead.
    */
   installCommand?: string | PlatformCommands;
-
-  /**
-   * If true, run installCommand once (from hooks dir). Use when you only have system deps in installCommand.
-   * If false or omitted and installCommand is set, run installCommand in each hook folder.
-   */
-  installCommandRunOnce?: boolean;
 
   /**
    * Files to download: hooks and rules paths from the repo.
@@ -97,13 +91,6 @@ export function validateConfig(config: any): config is CursorHookConfig {
 
   if (config.installCommand !== undefined) {
     validatePlatformCommands(config.installCommand, 'installCommand');
-  }
-
-  if (
-    config.installCommandRunOnce !== undefined &&
-    typeof config.installCommandRunOnce !== 'boolean'
-  ) {
-    throw new Error('installCommandRunOnce must be a boolean if provided');
   }
 
   if (config.files !== undefined) {

@@ -43,7 +43,7 @@ npx cursor-hook install /Users/me/projects/my-hook
 
 ## Configuration File
 
-Repositories must include a `cursor-hook.config.json` file in the root with the following structure:
+Repositories must include a **`cursor-hook.config.json`** file in the **repository root**. The CLI loads it after cloning or when using a local path.
 
 ### Simple Example (single command for all platforms)
 
@@ -66,19 +66,18 @@ When the installation command is the same across all platforms, use a simple str
 }
 ```
 
-### Platform-Specific Commands (system deps only, run once)
+### Platform-Specific Commands (system deps only)
 
-For system-wide dependencies only (e.g. `xdotool`), use `installCommandRunOnce: true`:
+For system-wide dependencies only (e.g. `xdotool`), use **systemInstallCommand** (runs once):
 
 ```json
 {
-  "installCommand": {
-    "linux": "sudo apt-get install -y xdotool || ...",
+  "systemInstallCommand": {
+    "linux": "sudo apt-get install -y xdotool || sudo yum install -y xdotool || true",
     "macos": "",
     "windows": "",
     "default": "echo 'No installation needed for this platform'"
   },
-  "installCommandRunOnce": true,
   "files": { "hooks": ["file1.sh"], "rules": [] },
   "hooks": { ... }
 }
@@ -98,7 +97,7 @@ When you need **both** system deps (run once) and per-hook build (e.g. npm i && 
   },
   "installCommand": "npm i --no-save --silent && npm run build || true",
   "files": {
-    "hooks": ["hooks/docs", "hooks/activate", "file1.sh"],
+    "hooks": ["hooks/docs", "hooks/activate"],
     "rules": []
   },
   "hooks": {
@@ -113,15 +112,15 @@ Order: 1) `systemInstallCommand` runs once from hooks dir. 2) `installCommand` r
 ### Configuration Fields
 
 - **systemInstallCommand** (optional): Run **once** from the hooks directory (e.g. apt-get, brew). String or platform object. Runs before `installCommand`.
-- **installCommand** (optional): 
-  - Can be a **string** (applies to all platforms) or an **object** with platform-specific commands:
-    - `linux`, `macos`, `windows`, `default`
-  - Empty strings or missing platform keys skip installation for that platform
-- **installCommandRunOnce** (optional): If **true**, run `installCommand` once (from hooks dir). If **false** or omitted, run `installCommand` in **each** hook folder (e.g. npm i && npm run build).
+- **installCommand** (optional): Run in **each** hook folder (e.g. npm i && npm run build). String or platform object. For system deps run once, use **systemInstallCommand**.
 - **files** (optional): Object with:
   - **hooks**: Array of paths (files or directories) to copy into `.cursor/hooks`
   - **rules**: Array of paths (files or directories) to copy into `.cursor/rules` (Cursor Rules for AI)
-- **hooks** (required): Object mapping hook names to arrays of hook configurations
+- **hooks** (required): Object mapping hook names to arrays of hook configurations. Each entry must have a **command** (string). Example: `"afterFileEdit": [{ "command": "node $HOME/.cursor/hooks/docs/dist/docs.js" }]`
+
+**Path behavior:** Paths in `files.hooks` and `files.rules` are relative to the repository root. Each item is copied into the target dir using its **last path segment** (e.g. `hooks/docs` → `.../.cursor/hooks/docs`). If a target path already exists, the CLI will prompt before overwriting.
+
+**Install command cwd:** `installCommand` runs with the current working directory set to each hook folder (or to the hooks dir if there are no hook folders). Do not put `cd <path>` in the command—use only the build steps (e.g. `npm i && npm run build || true`).
 
 ## Installation Flow
 
@@ -131,7 +130,7 @@ Order: 1) `systemInstallCommand` runs once from hooks dir. 2) `installCommand` r
    - **Global**: `~/.cursor/hooks.json` (applies to all projects)
    - **Project**: `.cursor/hooks.json` (applies to current project only)
 4. Downloads files: `files.hooks` → `.cursor/hooks`, `files.rules` → `.cursor/rules` (if present)
-5. Executes commands: **systemInstallCommand** once (if set), then **installCommand** once or in each hook folder (see `installCommandRunOnce`)
+5. Executes commands: **systemInstallCommand** once (if set), then **installCommand** in each hook folder (or once from hooks dir if no hook folders)
 6. Creates backup of existing `hooks.json` (if present)
 7. Merges hooks configuration into `hooks.json` (preserves existing hooks, prevents duplicates)
 
@@ -143,6 +142,20 @@ The tool works on:
 - **Windows** (PowerShell, CMD, Git Bash)
 
 Path variables like `$HOME` are automatically expanded on all platforms.
+
+## Types for hook authors
+
+If you are implementing a hook script (e.g. in Node.js) and want typed payloads, install the package and import types:
+
+```bash
+npm install cursor-hook
+```
+
+```ts
+import type { AfterFileEditPayload, HookEventName } from 'cursor-hook';
+```
+
+See [Cursor Hooks documentation](https://cursor.com/docs/agent/hooks) for payload and response schemas. The package re-exports TypeScript types that match those schemas.
 
 ## Examples
 
@@ -157,6 +170,11 @@ This repository demonstrates:
 - How to structure a hook package
 - Platform-specific dependency installation
 - Proper hook configuration
+
+### Notes
+
+- **Backup:** Before merging, the CLI creates `hooks.json.backup` if `hooks.json` exists. To restore: copy the backup over `hooks.json`.
+- **Overwrite:** If target paths (e.g. `.../hooks/docs`) already exist, the CLI asks for confirmation before overwriting.
 
 ## Development
 
