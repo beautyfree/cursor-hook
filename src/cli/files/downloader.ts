@@ -7,6 +7,35 @@ import * as path from 'path';
 import * as os from 'os';
 
 /**
+ * Resolve target paths for a list of source paths (relative to repo).
+ * Each target is targetDir + basename(sourcePath).
+ */
+export function getTargetPaths(
+  files: string[],
+  targetDir: string
+): { sourcePath: string; targetPath: string }[] {
+  return files.map((file) => ({
+    sourcePath: file,
+    targetPath: path.join(targetDir, path.basename(file)),
+  }));
+}
+
+/**
+ * Check which target paths already exist on disk.
+ * Returns list of existing target paths.
+ */
+export async function findExistingPaths(files: string[], targetDir: string): Promise<string[]> {
+  const pairs = getTargetPaths(files, targetDir);
+  const existing: string[] = [];
+  for (const { targetPath } of pairs) {
+    if (await fs.pathExists(targetPath)) {
+      existing.push(targetPath);
+    }
+  }
+  return existing;
+}
+
+/**
  * Copy files from repository to hooks directory
  */
 export async function downloadFiles(

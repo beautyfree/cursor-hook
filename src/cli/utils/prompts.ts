@@ -37,14 +37,16 @@ export async function promptHooksLocation(): Promise<HooksLocation> {
 
 /**
  * Confirm action before proceeding
+ * @param message - Prompt text
+ * @param defaultYes - Default choice (true = Yes, false = No)
  */
-export async function confirmAction(message: string): Promise<boolean> {
+export async function confirmAction(message: string, defaultYes: boolean = true): Promise<boolean> {
   const answers = await inquirer.prompt<{ confirmed: boolean }>([
     {
       type: 'confirm',
       name: 'confirmed',
       message,
-      default: true,
+      default: defaultYes,
     },
   ]);
 
