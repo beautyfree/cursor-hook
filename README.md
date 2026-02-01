@@ -66,45 +66,58 @@ When the installation command is the same across all platforms, use a simple str
 }
 ```
 
-### Platform-Specific Commands
+### Platform-Specific Commands (system deps only, run once)
+
+For system-wide dependencies only (e.g. `xdotool`), use `installCommandRunOnce: true`:
 
 ```json
 {
   "installCommand": {
-    "linux": "sudo apt-get install -y xdotool || sudo yum install -y xdotool || sudo dnf install -y xdotool || sudo pacman -S --noconfirm xdotool || true",
+    "linux": "sudo apt-get install -y xdotool || ...",
     "macos": "",
     "windows": "",
     "default": "echo 'No installation needed for this platform'"
   },
+  "installCommandRunOnce": true,
+  "files": { "hooks": ["file1.sh"], "rules": [] },
+  "hooks": { ... }
+}
+```
+
+### System + per-hook (both)
+
+When you need **both** system deps (run once) and per-hook build (e.g. npm i && npm run build in each hook folder), use **systemInstallCommand** and **installCommand**:
+
+```json
+{
+  "systemInstallCommand": {
+    "linux": "sudo apt-get install -y xdotool || sudo yum install -y xdotool || true",
+    "macos": "",
+    "windows": "",
+    "default": "echo 'No system install needed'"
+  },
+  "installCommand": "npm i --no-save --silent && npm run build || true",
   "files": {
-    "hooks": ["file1.sh", "directory/"],
+    "hooks": ["hooks/docs", "hooks/activate", "file1.sh"],
     "rules": []
   },
   "hooks": {
-    "beforeSubmitPrompt": [
-      {
-        "command": "$HOME/.cursor/hooks/file1.sh"
-      }
-    ],
-    "afterAgentResponse": [
-      {
-        "command": "$HOME/.cursor/hooks/file1.sh"
-      }
-    ]
+    "afterFileEdit": [{ "command": "node $HOME/.cursor/hooks/docs/dist/docs.js" }],
+    "stop": [{ "command": "node $HOME/.cursor/hooks/activate/dist/activate.js" }]
   }
 }
 ```
 
+Order: 1) `systemInstallCommand` runs once from hooks dir. 2) `installCommand` runs in each hook folder (docs, activate).
+
 ### Configuration Fields
 
+- **systemInstallCommand** (optional): Run **once** from the hooks directory (e.g. apt-get, brew). String or platform object. Runs before `installCommand`.
 - **installCommand** (optional): 
-  - Can be a **string** (applies to all platforms) for backward compatibility
-  - Or an **object** with platform-specific commands:
-    - `linux` - Command for Linux
-    - `macos` - Command for macOS
-    - `windows` - Command for Windows
-    - `default` - Fallback command for other platforms
-  - Empty strings or missing platform keys will skip installation for that platform
+  - Can be a **string** (applies to all platforms) or an **object** with platform-specific commands:
+    - `linux`, `macos`, `windows`, `default`
+  - Empty strings or missing platform keys skip installation for that platform
+- **installCommandRunOnce** (optional): If **true**, run `installCommand` once (from hooks dir). If **false** or omitted, run `installCommand` in **each** hook folder (e.g. npm i && npm run build).
 - **files** (optional): Object with:
   - **hooks**: Array of paths (files or directories) to copy into `.cursor/hooks`
   - **rules**: Array of paths (files or directories) to copy into `.cursor/rules` (Cursor Rules for AI)
@@ -118,7 +131,7 @@ When the installation command is the same across all platforms, use a simple str
    - **Global**: `~/.cursor/hooks.json` (applies to all projects)
    - **Project**: `.cursor/hooks.json` (applies to current project only)
 4. Downloads files: `files.hooks` → `.cursor/hooks`, `files.rules` → `.cursor/rules` (if present)
-5. Executes `installCommand` if present (runs in the hook's directory, e.g., for npm dependencies)
+5. Executes commands: **systemInstallCommand** once (if set), then **installCommand** once or in each hook folder (see `installCommandRunOnce`)
 6. Creates backup of existing `hooks.json` (if present)
 7. Merges hooks configuration into `hooks.json` (preserves existing hooks, prevents duplicates)
 

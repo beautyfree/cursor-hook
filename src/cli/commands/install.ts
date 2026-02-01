@@ -107,20 +107,46 @@ export async function installHooks(options: InstallOptions): Promise<void> {
       console.log(`✓ Rules downloaded to: ${rulesDir}\n`);
     }
 
-    // Step 5: Execute install command if present (after files are copied, so package.json is available)
+    // Step 5a: System install (run once, e.g. apt-get xdotool)
+    const systemInstallCommand = getInstallCommand(config.systemInstallCommand);
+    if (systemInstallCommand) {
+      console.log('⚙️  Installing system dependencies...');
+      const ok = await executeCommandWithOutput(systemInstallCommand, {
+        cwd: hooksDir,
+      });
+      if (!ok) {
+        throw new Error(
+          'System install command failed. Fix the command or environment and try again.'
+        );
+      }
+      console.log('✓ System dependencies installed\n');
+    }
+
+    // Step 5b: Per-hook install (e.g. npm i && npm run build in each hook dir)
     const installCommand = getInstallCommand(config.installCommand);
-    if (installCommand) {
+    const runOnce = config.installCommandRunOnce === true;
+
+    if (installCommand && (runOnce || hooksPaths.length === 0)) {
       console.log('⚙️  Installing dependencies...');
-
-      // Run from first hook dir (e.g. hooks/docs → .../docs) or hooksDir if no hooks copied
-      const installCwd =
-        hooksPaths.length > 0 ? path.join(hooksDir, path.basename(hooksPaths[0])) : hooksDir;
-
       const installOk = await executeCommandWithOutput(installCommand, {
-        cwd: installCwd,
+        cwd: hooksDir,
       });
       if (!installOk) {
         throw new Error('Install command failed. Fix the command or environment and try again.');
+      }
+      console.log('✓ Dependencies installed\n');
+    } else if (installCommand && hooksPaths.length > 0) {
+      for (const hookPath of hooksPaths) {
+        const installCwd = path.join(hooksDir, path.basename(hookPath));
+        console.log(`⚙️  Installing dependencies in ${path.basename(hookPath)}...`);
+        const installOk = await executeCommandWithOutput(installCommand, {
+          cwd: installCwd,
+        });
+        if (!installOk) {
+          throw new Error(
+            `Install command failed in ${installCwd}. Fix the command or environment and try again.`
+          );
+        }
       }
       console.log('✓ Dependencies installed\n');
     }
