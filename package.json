@@ -1,14 +1,14 @@
 {
   "name": "cursor-hook",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "CLI tool to install Cursor hooks",
-  "main": "dist/index.js",
+  "main": "dist/cli/index.js",
   "bin": {
-    "cursor-hook": "./dist/index.js"
+    "cursor-hook": "./dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts",
+    "dev": "tsx src/cli/index.ts",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
