@@ -112,11 +112,16 @@ export async function installHooks(options: InstallOptions): Promise<void> {
     if (installCommand) {
       console.log('⚙️  Installing dependencies...');
 
-      // Determine the directory where activate-window is located
-      const activateWindowDir = path.join(hooksDir, 'activate-window');
+      // Run from first hook dir (e.g. hooks/docs → .../docs) or hooksDir if no hooks copied
+      const installCwd =
+        hooksPaths.length > 0 ? path.join(hooksDir, path.basename(hooksPaths[0])) : hooksDir;
 
-      // Execute command in the activate-window directory (where package.json is)
-      await executeCommandWithOutput(installCommand, { cwd: activateWindowDir });
+      const installOk = await executeCommandWithOutput(installCommand, {
+        cwd: installCwd,
+      });
+      if (!installOk) {
+        throw new Error('Install command failed. Fix the command or environment and try again.');
+      }
       console.log('✓ Dependencies installed\n');
     }
 
