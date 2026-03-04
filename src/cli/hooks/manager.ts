@@ -18,6 +18,7 @@ export function buildEnvPrefix(env: Record<string, string>): string {
   for (const [k, v] of Object.entries(env)) {
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) continue;
     const val = String(v);
+    if (val === '') continue; // skip empty values — do not inject VAR=''
     if (isWindows) {
       const escaped = val.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
       parts.push(`set "${k}=${escaped}"`);
@@ -248,7 +249,8 @@ export function expandPathsInHooks(
         if (keys && keys.length > 0) {
           const subset: Record<string, string> = {};
           for (const k of keys) {
-            if (envVars[k] !== undefined) subset[k] = envVars[k];
+            const v = envVars[k];
+            if (v !== undefined && v !== '') subset[k] = v; // omit empty so we don't inject VAR=''
           }
           if (Object.keys(subset).length > 0) {
             command = buildEnvPrefix(subset) + command;
