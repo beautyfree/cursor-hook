@@ -3,12 +3,18 @@
  */
 
 import { downloadRepository, loadConfigFromRepo, cleanupTempDir } from '../git/downloader';
-import { validateConfig, CursorHookConfig } from '../config/schema';
+import { validateConfig, CursorHookConfig, RequiredEnvEntry } from '../config/schema';
 import { getInstallCommand } from '../config/install-command';
 import { downloadFiles, findExistingPaths } from '../files/downloader';
 import { executeCommandWithOutput } from '../shell/executor';
-import { readHooksJson, mergeHooks, writeHooksJson } from '../hooks/manager';
-import { promptHooksLocation, confirmAction } from '../utils/prompts';
+import {
+  readHooksJson,
+  mergeHooks,
+  writeHooksJson,
+  expandPathsInHooks,
+  HooksJson,
+} from '../hooks/manager';
+import { promptHooksLocation, confirmAction, promptEnvVars } from '../utils/prompts';
 import {
   getGlobalHooksDir,
   getGlobalHooksJsonPath,
@@ -19,7 +25,6 @@ import {
 } from '../utils/paths';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import * as os from 'os';
 
 export interface InstallOptions {
   repo: string;
@@ -69,6 +74,54 @@ export async function installHooks(options: InstallOptions): Promise<void> {
     const hooksDir = location === 'global' ? getGlobalHooksDir() : getProjectHooksDir();
     const hooksJsonPath =
       location === 'global' ? getGlobalHooksJsonPath() : getProjectHooksJsonPath();
+
+    // Step 3b: Collect requiredEnv per hook (hook.requiredEnv ?? config.requiredEnv), build commandToEnvKeys and prompt
+    const isProjectInstall = location === 'project';
+    const configHooksOnly: HooksJson = { version: 1, hooks: config.hooks };
+    const expandedConfig = expandPathsInHooks(
+      configHooksOnly,
+      hooksJsonPath,
+      hooksDir,
+      isProjectInstall
+    );
+    const commandToEnvKeys = new Map<string, string[]>();
+    const allVarSpecs = new Map<string, { description?: string }>();
+
+    const toNames = (entries: RequiredEnvEntry[] | undefined): string[] =>
+      (entries ?? []).map((e) => (typeof e === 'string' ? e : e.name));
+
+    for (const [hookName, hookArray] of Object.entries(config.hooks)) {
+      const expandedArray = expandedConfig.hooks[hookName] ?? [];
+      hookArray.forEach((hook, i) => {
+        const envEntries = hook.requiredEnv ?? config.requiredEnv;
+        if (!envEntries || envEntries.length === 0) return;
+        const names = toNames(envEntries);
+        const expandedCommand = expandedArray[i]?.command;
+        if (expandedCommand) {
+          commandToEnvKeys.set(expandedCommand, names);
+          for (const e of envEntries) {
+            const name = typeof e === 'string' ? e : e.name;
+            const description = typeof e === 'object' ? e.description : undefined;
+            if (!allVarSpecs.has(name)) allVarSpecs.set(name, { description });
+          }
+        }
+      });
+    }
+
+    let collectedEnv: Record<string, string> | undefined;
+    if (commandToEnvKeys.size > 0 && allVarSpecs.size > 0) {
+      const processEnv: Record<string, string> = {};
+      for (const [k, v] of Object.entries(process.env)) {
+        if (v !== undefined) processEnv[k] = v;
+      }
+      const specs = Array.from(allVarSpecs.entries(), ([name, { description }]) => ({
+        name,
+        description,
+      }));
+      console.log('🔐 Required environment variables:\n');
+      collectedEnv = await promptEnvVars(specs, processEnv);
+      console.log('');
+    }
 
     // Step 4: Check for existing paths (don't overwrite without confirmation)
     const rulesDir = location === 'global' ? getGlobalRulesDir() : getProjectRulesDir();
@@ -160,7 +213,6 @@ export async function installHooks(options: InstallOptions): Promise<void> {
     // Step 7: Merge hooks into hooks.json
     console.log('🔗 Merging hooks configuration...');
     const existingHooks = await readHooksJson(hooksJsonPath);
-    const isProjectInstall = location === 'project';
     const mergeResult = mergeHooks(
       existingHooks,
       config,
@@ -183,7 +235,14 @@ export async function installHooks(options: InstallOptions): Promise<void> {
       console.log('ℹ️  All hooks already exist, no changes made');
     }
 
-    await writeHooksJson(hooksJsonPath, mergeResult.hooks, hooksDir, isProjectInstall);
+    await writeHooksJson(
+      hooksJsonPath,
+      mergeResult.hooks,
+      hooksDir,
+      isProjectInstall,
+      collectedEnv,
+      commandToEnvKeys.size > 0 ? commandToEnvKeys : undefined
+    );
     console.log(`✓ Hooks configuration updated: ${hooksJsonPath}\n`);
 
     console.log('✅ Installation complete!');

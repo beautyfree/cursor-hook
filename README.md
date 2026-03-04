@@ -109,14 +109,47 @@ When you need **both** system deps (run once) and per-hook build (e.g. npm i && 
 
 Order: 1) `systemInstallCommand` runs once from hooks dir. 2) `installCommand` runs in each hook folder (docs, activate).
 
+### Required environment variables
+
+You can require the user to provide environment variables during install. Values are **injected into the hook command** (no `.env` file). The CLI prepends `VAR=value` (Unix) or `set "VAR=value" &&` (Windows) so the hook process receives the variables.
+
+You can set **requiredEnv** in two places:
+
+1. **Top-level** — same env vars for every hook that doesn’t define its own:
+```json
+{
+  "requiredEnv": ["API_KEY", { "name": "SECRET", "description": "Optional hint" }],
+  "hooks": {
+    "afterFileEdit": [{ "command": "node $HOME/.cursor/hooks/docs/docs.js" }]
+  }
+}
+```
+
+2. **Per-hook** — each hook can declare its own env vars (overrides top-level for that hook):
+```json
+{
+  "hooks": {
+    "afterFileEdit": [
+      { "command": "node $HOME/.cursor/hooks/docs/docs.js", "requiredEnv": ["API_KEY"] }
+    ],
+    "beforeSubmitPrompt": [
+      { "command": "node $HOME/.cursor/hooks/activate/activate.js", "requiredEnv": ["SECRET_TOKEN", "API_URL"] }
+    ]
+  }
+}
+```
+
+- User is prompted once per unique variable name; current `process.env` is used as default. Only the vars required by that hook are injected into each command (e.g. the `beforeSubmitPrompt` command above gets only `SECRET_TOKEN` and `API_URL`).
+
 ### Configuration Fields
 
 - **systemInstallCommand** (optional): Run **once** from the hooks directory (e.g. apt-get, brew). String or platform object. Runs before `installCommand`.
 - **installCommand** (optional): Run in **each** hook folder (e.g. npm i && npm run build). String or platform object. For system deps run once, use **systemInstallCommand**.
+- **requiredEnv** (optional): Top-level list of env var names (or `{ "name", "description?" }`) to prompt for; applied to all hooks that don’t set their own **requiredEnv**. Values are injected into the hook command in `hooks.json`.
 - **files** (optional): Object with:
   - **hooks**: Array of paths (files or directories) to copy into `.cursor/hooks`
   - **rules**: Array of paths (files or directories) to copy into `.cursor/rules` (Cursor Rules for AI)
-- **hooks** (required): Object mapping hook names to arrays of hook configurations. Each entry must have a **command** (string). Example: `"afterFileEdit": [{ "command": "node $HOME/.cursor/hooks/docs/dist/docs.js" }]`
+- **hooks** (required): Object mapping hook names to arrays of hook configurations. Each entry must have a **command** (string) and may have **requiredEnv** (array, same format as top-level) for that hook only. Example: `"afterFileEdit": [{ "command": "node $HOME/.cursor/hooks/docs/dist/docs.js", "requiredEnv": ["API_KEY"] }]`
 
 **Path behavior:** Paths in `files.hooks` and `files.rules` are relative to the repository root. Each item is copied into the target dir using its **last path segment** (e.g. `hooks/docs` → `.../.cursor/hooks/docs`). If a target path already exists, the CLI will prompt before overwriting.
 
@@ -129,10 +162,11 @@ Order: 1) `systemInstallCommand` runs once from hooks dir. 2) `installCommand` r
 3. Prompts user to choose installation location:
    - **Global**: `~/.cursor/hooks.json` (applies to all projects)
    - **Project**: `.cursor/hooks.json` (applies to current project only)
-4. Downloads files: `files.hooks` → `.cursor/hooks`, `files.rules` → `.cursor/rules` (if present)
-5. Executes commands: **systemInstallCommand** once (if set), then **installCommand** in each hook folder (or once from hooks dir if no hook folders)
-6. Creates backup of existing `hooks.json` (if present)
-7. Merges hooks configuration into `hooks.json` (preserves existing hooks, prevents duplicates)
+4. If any hook has **requiredEnv** (per-hook or top-level), prompts for each variable once and injects only the vars each hook needs into its command in `hooks.json`.
+5. Downloads files: `files.hooks` → `.cursor/hooks`, `files.rules` → `.cursor/rules` (if present)
+6. Executes commands: **systemInstallCommand** once (if set), then **installCommand** in each hook folder (or once from hooks dir if no hook folders)
+7. Creates backup of existing `hooks.json` (if present)
+8. Merges hooks configuration into `hooks.json` (preserves existing hooks, prevents duplicates)
 
 ## Cross-Platform Support
 

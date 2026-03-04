@@ -4,9 +4,32 @@
 
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import * as os from 'os';
-import { expandHome } from '../utils/paths';
+import { expandHome, detectOS } from '../utils/paths';
 import { CursorHookConfig } from '../config/schema';
+
+/**
+ * Build shell prefix to inject env vars into a command (VAR=value VAR2=value2 command).
+ * Escapes values for safe use in shell. Unix: single-quoted; Windows: set "VAR=value" && .
+ */
+export function buildEnvPrefix(env: Record<string, string>): string {
+  if (Object.keys(env).length === 0) return '';
+  const isWindows = detectOS() === 'windows';
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(env)) {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) continue;
+    const val = String(v);
+    if (isWindows) {
+      const escaped = val.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      parts.push(`set "${k}=${escaped}"`);
+    } else {
+      const escaped = val.replace(/'/g, "'\\''");
+      parts.push(`${k}='${escaped}'`);
+    }
+  }
+  if (parts.length === 0) return '';
+  if (isWindows) return parts.join(' && ') + ' && ';
+  return parts.join(' ') + ' ';
+}
 
 export interface HooksJson {
   version?: number;
@@ -165,12 +188,15 @@ export function mergeHooks(
 /**
  * Expand path variables in hooks (like $HOME)
  * For project installation, converts $HOME/.cursor/hooks/ to relative .cursor/hooks/
+ * If envVars and ourCommands are provided, prepends env to commands that belong to this install.
  */
 export function expandPathsInHooks(
   hooks: HooksJson,
   hooksJsonPath: string,
   hooksDir: string,
-  isProjectInstall: boolean
+  isProjectInstall: boolean,
+  envVars?: Record<string, string>,
+  commandEnvKeys?: Map<string, string[]>
 ): HooksJson {
   const expanded: HooksJson = {
     version: hooks.version,
@@ -217,6 +243,19 @@ export function expandPathsInHooks(
         command = path.normalize(command);
       }
 
+      if (envVars && commandEnvKeys && commandEnvKeys.size > 0) {
+        const keys = commandEnvKeys.get(command);
+        if (keys && keys.length > 0) {
+          const subset: Record<string, string> = {};
+          for (const k of keys) {
+            if (envVars[k] !== undefined) subset[k] = envVars[k];
+          }
+          if (Object.keys(subset).length > 0) {
+            command = buildEnvPrefix(subset) + command;
+          }
+        }
+      }
+
       return {
         ...hook,
         command,
@@ -228,19 +267,29 @@ export function expandPathsInHooks(
 }
 
 /**
- * Write hooks.json file with proper formatting
+ * Write hooks.json file with proper formatting.
+ * If envVars and commandEnvKeys are provided, each command gets only its required env vars prefixed.
  */
 export async function writeHooksJson(
   hooksJsonPath: string,
   hooks: HooksJson,
   hooksDir: string,
-  isProjectInstall: boolean
+  isProjectInstall: boolean,
+  envVars?: Record<string, string>,
+  commandEnvKeys?: Map<string, string[]>
 ): Promise<void> {
   // Ensure directory exists
   await fs.ensureDir(path.dirname(hooksJsonPath));
 
-  // Expand paths before writing (with context for project vs global)
-  const expanded = expandPathsInHooks(hooks, hooksJsonPath, hooksDir, isProjectInstall);
+  // Expand paths (and optionally inject env prefix per command)
+  const expanded = expandPathsInHooks(
+    hooks,
+    hooksJsonPath,
+    hooksDir,
+    isProjectInstall,
+    envVars,
+    commandEnvKeys
+  );
 
   // Format JSON with 2-space indentation
   const content = JSON.stringify(expanded, null, 2) + '\n';

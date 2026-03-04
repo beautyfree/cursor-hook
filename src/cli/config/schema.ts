@@ -23,6 +23,11 @@ export interface PlatformCommands {
   default?: string;
 }
 
+/**
+ * Required env var: name only, or name + optional description for the prompt
+ */
+export type RequiredEnvEntry = string | { name: string; description?: string };
+
 export interface CursorHookConfig {
   /**
    * Run once from hooks dir (e.g. apt-get, brew). Use for system-wide dependencies.
@@ -37,6 +42,12 @@ export interface CursorHookConfig {
   installCommand?: string | PlatformCommands;
 
   /**
+   * Environment variable names (or name + description) that the user must provide during install.
+   * Applied to all hooks that don't define their own requiredEnv. Values are injected into each hook command in hooks.json.
+   */
+  requiredEnv?: RequiredEnvEntry[];
+
+  /**
    * Files to download: hooks and rules paths from the repo.
    * Each list is copied into the corresponding .cursor area.
    */
@@ -49,10 +60,15 @@ export interface CursorHookConfig {
 
   /**
    * Hooks configuration to merge into hooks.json
+   * Each hook entry may specify its own requiredEnv (overrides top-level requiredEnv for that hook).
    */
   hooks: {
     [hookName: string]: Array<{
       command: string;
+      /**
+       * Env vars required for this hook only. If omitted, top-level requiredEnv is used (if any).
+       */
+      requiredEnv?: RequiredEnvEntry[];
       [key: string]: any;
     }>;
   };
@@ -93,6 +109,28 @@ export function validateConfig(config: any): config is CursorHookConfig {
     validatePlatformCommands(config.installCommand, 'installCommand');
   }
 
+  if (config.requiredEnv !== undefined) {
+    if (!Array.isArray(config.requiredEnv)) {
+      throw new Error('requiredEnv must be an array if provided');
+    }
+    for (let i = 0; i < config.requiredEnv.length; i++) {
+      const entry = config.requiredEnv[i];
+      if (typeof entry === 'string') {
+        if (!entry.trim()) {
+          throw new Error(`requiredEnv[${i}] must be a non-empty string`);
+        }
+      } else if (entry && typeof entry === 'object' && typeof (entry as any).name === 'string') {
+        if (!(entry as any).name.trim()) {
+          throw new Error(`requiredEnv[${i}].name must be a non-empty string`);
+        }
+      } else {
+        throw new Error(
+          `requiredEnv[${i}] must be a string or an object with "name" (and optional "description")`
+        );
+      }
+    }
+  }
+
   if (config.files !== undefined) {
     if (!config.files || typeof config.files !== 'object' || Array.isArray(config.files)) {
       throw new Error('files must be an object if provided');
@@ -120,16 +158,34 @@ export function validateConfig(config: any): config is CursorHookConfig {
   }
 
   // Validate hooks structure
+  const validateRequiredEnv = (arr: any, ctx: string) => {
+    if (!Array.isArray(arr)) return;
+    for (let i = 0; i < arr.length; i++) {
+      const entry = arr[i];
+      if (typeof entry === 'string') {
+        if (!entry.trim()) throw new Error(`${ctx}[${i}] must be a non-empty string`);
+      } else if (entry && typeof entry === 'object' && typeof (entry as any).name === 'string') {
+        if (!(entry as any).name.trim()) throw new Error(`${ctx}[${i}].name must be a non-empty string`);
+      } else {
+        throw new Error(`${ctx}[${i}] must be a string or an object with "name" (and optional "description")`);
+      }
+    }
+  };
+
   for (const [hookName, hookArray] of Object.entries(config.hooks)) {
     if (!Array.isArray(hookArray)) {
       throw new Error(`Hook "${hookName}" must be an array`);
     }
-    for (const hook of hookArray) {
+    for (let i = 0; i < hookArray.length; i++) {
+      const hook = hookArray[i];
       if (!hook || typeof hook !== 'object') {
         throw new Error(`Hook entry in "${hookName}" must be an object`);
       }
       if (!hook.command || typeof hook.command !== 'string') {
         throw new Error(`Hook entry in "${hookName}" must have a "command" string property`);
+      }
+      if (hook.requiredEnv !== undefined) {
+        validateRequiredEnv(hook.requiredEnv, `hooks.${hookName}[${i}].requiredEnv`);
       }
     }
   }
